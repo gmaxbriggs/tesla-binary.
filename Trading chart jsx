@@ -1,0 +1,67 @@
+import React, { useEffect, useRef } from 'react';
+import { createChart, ColorType } from 'lightweight-charts';
+
+const TradingChart = () => {
+  const chartContainerRef = useRef();
+  const chartRef = useRef();
+  const seriesRef = useRef();
+
+  useEffect(() => {
+    // 1. Initialize Chart
+    chartRef.current = createChart(chartContainerRef.current, {
+      layout: {
+        background: { type: ColorType.Solid, color: 'transparent' },
+        textColor: '#D1D4DC',
+      },
+      grid: {
+        vertLines: { color: 'rgba(42, 46, 57, 0.2)' },
+        horzLines: { color: 'rgba(42, 46, 57, 0.2)' },
+      },
+      width: chartContainerRef.current.clientWidth,
+      height: 400,
+      timeScale: { borderVisible: false, timeVisible: true, secondsVisible: true },
+    });
+
+    // 2. Add Candlestick Series
+    seriesRef.current = chartRef.current.addCandlestickSeries({
+      upColor: '#00FF88', 
+      downColor: '#FF3B3B',
+      borderVisible: false,
+      wickUpColor: '#00FF88',
+      wickDownColor: '#FF3B3B',
+    });
+
+    // 3. Connect to Binance WebSocket for Live Data
+    const socket = new WebSocket('wss://stream.binance.com:9443/ws/btcusdt@kline_1m');
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data);
+      const candle = message.k;
+      
+      // Update the chart with the latest tick
+      seriesRef.current.update({
+        time: candle.t / 1000, 
+        open: parseFloat(candle.o),
+        high: parseFloat(candle.h),
+        low: parseFloat(candle.l),
+        close: parseFloat(candle.c),
+      });
+    };
+
+    // 4. Handle Resize
+    const handleResize = () => {
+      chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
+    };
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      socket.close();
+      chartRef.current.remove();
+    };
+  }, []);
+
+  return <div ref={chartContainerRef} className="w-full h-full" />;
+};
+
+export default TradingChart;
